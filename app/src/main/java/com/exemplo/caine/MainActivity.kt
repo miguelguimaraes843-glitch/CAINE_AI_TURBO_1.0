@@ -108,7 +108,7 @@ class MainActivity : AppCompatActivity() {
 
         WorkManager.getInstance(this).enqueueUniquePeriodicWork(
             "caine_worker",
-            ExistingPeriodicWorkPolicy.UPDATE,
+            ExistingPeriodicWorkPolicy.REPLACE, // 🔥 CORRIGIDO AQUI
             work
         )
     }
