@@ -29,11 +29,11 @@
         app:layout_constraintStart_toStartOf="parent"
         app:layout_constraintEnd_toEndOf="parent">
 
-        <!-- 🎤 BOTÃO DE VOZ (NOVO) -->
+        <!-- 🎤 BOTÃO DE VOZ -->
         <Button
             android:id="@+id/voiceButton"
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
+            android:layout_width="48dp"
+            android:layout_height="48dp"
             android:text="🎤"
             android:textSize="18sp"
             android:textAllCaps="false"
