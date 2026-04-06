@@ -5,14 +5,13 @@ pluginManagement {
         gradlePluginPortal()
     }
 
-    // 🔥 FORÇA VERSÃO COMPATÍVEL COM JAVA 8 (CORRIGIDO)
     resolutionStrategy {
         eachPlugin {
             if (requested.id.id == "com.android.application") {
-                useVersion("4.2.2") // ✅ compatível REAL com Java 8
+                useVersion("4.2.2")
             }
             if (requested.id.id == "org.jetbrains.kotlin.android") {
-                useVersion("1.6.21") // ✅ alinhado com AGP 4.2.2
+                useVersion("1.8.22") // 🔥 ATUALIZADO
             }
         }
     }
