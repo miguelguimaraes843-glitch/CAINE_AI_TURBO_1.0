@@ -1,0 +1,21 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+
+    <!-- Tema principal do app -->
+    <style name="Theme.Caine" parent="Theme.AppCompat.Light.NoActionBar">
+
+        <!-- Cor da barra de status -->
+        <item name="android:statusBarColor">#000000</item>
+
+        <!-- Cor da barra de navegação -->
+        <item name="android:navigationBarColor">#000000</item>
+
+        <!-- Cor de fundo geral -->
+        <item name="android:windowBackground">#121212</item>
+
+        <!-- Cor padrão do texto -->
+        <item name="android:textColor">#FFFFFF</item>
+
+    </style>
+
+</resources>
