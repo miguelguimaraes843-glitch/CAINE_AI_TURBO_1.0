@@ -1,7 +1,7 @@
 // Top-level build file where you can add configuration options common to all sub-projects/modules.
 plugins {
-    id("com.android.application") version "4.2.2" apply false // 🔥 ↓ compatível REAL com Java 8
-    id("org.jetbrains.kotlin.android") version "1.6.21" apply false // 🔥 alinhado com AGP 4.2.2
+    id("com.android.application") version "4.2.2" apply false
+    id("org.jetbrains.kotlin.android") version "1.8.22" apply false // 🔥 atualizado
 }
 
 allprojects {
@@ -17,16 +17,15 @@ subprojects {
 
         resolutionStrategy {
 
-            // 🔥 força alinhamento COMPLETO
             force(
 
                 // ==========================
-                // 🧠 KOTLIN (ALINHADO)
+                // 🧠 KOTLIN (ATUALIZADO)
                 // ==========================
-                "org.jetbrains.kotlin:kotlin-stdlib:1.6.21",
-                "org.jetbrains.kotlin:kotlin-stdlib-jdk7:1.6.21",
-                "org.jetbrains.kotlin:kotlin-stdlib-jdk8:1.6.21",
-                "org.jetbrains.kotlin:kotlin-stdlib-common:1.6.21",
+                "org.jetbrains.kotlin:kotlin-stdlib:1.8.22",
+                "org.jetbrains.kotlin:kotlin-stdlib-jdk7:1.8.22",
+                "org.jetbrains.kotlin:kotlin-stdlib-jdk8:1.8.22",
+                "org.jetbrains.kotlin:kotlin-stdlib-common:1.8.22",
 
                 // ==========================
                 // ⚡ CORE
