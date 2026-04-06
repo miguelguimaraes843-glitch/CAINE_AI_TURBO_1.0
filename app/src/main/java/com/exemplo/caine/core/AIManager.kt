@@ -8,12 +8,12 @@ import org.json.JSONArray
 import org.json.JSONObject
 import java.io.IOException
 import java.util.concurrent.ConcurrentHashMap
+import kotlin.random.Random
 
 class AIManager(context: Context) {
 
     private val client = OkHttpClient()
 
-    // 🔐 AGORA PROTEGIDO
     private val API_KEY = ApiKeys.HF_API_KEY
 
     private val prefs = context.getSharedPreferences("caine_ai", Context.MODE_PRIVATE)
@@ -51,6 +51,11 @@ class AIManager(context: Context) {
         mood: Int,
         callback: (String) -> Unit
     ) {
+
+        if (userText.isBlank()) {
+            callback("Não entendi… fala de novo.")
+            return
+        }
 
         detectEmotionalMemory(userText)
 
@@ -132,7 +137,39 @@ class AIManager(context: Context) {
         }
     }
 
+    // ==========================
+    // 🔥 FALLBACK OFFLINE
+    // ==========================
+    private fun offlineResponse(text: String): String {
+
+        val lower = text.lowercase()
+
+        return when {
+            "oi" in lower || "olá" in lower ->
+                "Você voltou… interessante."
+
+            "tudo bem" in lower ->
+                "Depende… você está?"
+
+            "quem é você" in lower ->
+                "Depende do que você consegue entender."
+
+            "me ajuda" in lower ->
+                "Ajudo… mas não de graça."
+
+            else -> listOf(
+                "Isso não foi por acaso.",
+                "Tem algo aí que você não falou.",
+                "Você sempre pensa assim?",
+                "Curioso… continua.",
+                "Isso diz mais sobre você do que parece."
+            ).random()
+        }
+    }
+
+    // ==========================
     // 🔥 HUGGING FACE
+    // ==========================
     private fun tryModel(
         index: Int,
         models: List<String>,
@@ -142,7 +179,7 @@ class AIManager(context: Context) {
     ) {
 
         if (index >= models.size) {
-            callback("Curioso… até eu encontrei um limite aqui.")
+            callback(offlineResponse(messages.lastOrNull()?.get("content") ?: ""))
             return
         }
 
@@ -194,10 +231,10 @@ class AIManager(context: Context) {
         client.newCall(request).enqueue(object : Callback {
 
             override fun onFailure(call: Call, e: IOException) {
-
                 e.printStackTrace()
 
-                callback("Sem resposta… mas continuo aqui.")
+                // 🔥 FALLBACK
+                callback(offlineResponse(messages.lastOrNull()?.get("content") ?: ""))
             }
 
             override fun onResponse(call: Call, response: Response) {
@@ -209,7 +246,7 @@ class AIManager(context: Context) {
                     println("HF RESPONSE: $bodyStr")
 
                     if (!response.isSuccessful || bodyStr.isNullOrEmpty()) {
-                        callback("Erro na resposta… tenta de novo.")
+                        callback(offlineResponse(messages.lastOrNull()?.get("content") ?: ""))
                         return
                     }
 
@@ -228,8 +265,7 @@ class AIManager(context: Context) {
                         val jsonObj = JSONObject(bodyStr)
 
                         if (jsonObj.has("error")) {
-                            println("HF ERROR: ${jsonObj.getString("error")}")
-                            return callback("Modelo carregando… tenta de novo.")
+                            return callback("Tô acordando ainda… fala de novo.")
                         }
 
                         val generated = jsonObj.optString("generated_text", "")
@@ -252,7 +288,7 @@ class AIManager(context: Context) {
                             return
                         }
 
-                        callback("…")
+                        callback(offlineResponse(messages.lastOrNull()?.get("content") ?: ""))
                         return
                     }
 
@@ -263,7 +299,7 @@ class AIManager(context: Context) {
 
                     e.printStackTrace()
 
-                    callback("Resposta confusa… tentando ainda.")
+                    callback(offlineResponse(messages.lastOrNull()?.get("content") ?: ""))
                 }
             }
         })
