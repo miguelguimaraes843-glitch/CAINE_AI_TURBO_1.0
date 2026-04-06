@@ -13,7 +13,8 @@ class AIManager(context: Context) {
 
     private val client = OkHttpClient()
 
-    private val API_KEY = "SUA_API_KEY_HUGGING_AQUI"
+    // 🔐 AGORA PROTEGIDO
+    private val API_KEY = ApiKeys.HF_API_KEY
 
     private val prefs = context.getSharedPreferences("caine_ai", Context.MODE_PRIVATE)
     private val emotionalPrefs = context.getSharedPreferences("caine_emotional", Context.MODE_PRIVATE)
@@ -131,7 +132,7 @@ class AIManager(context: Context) {
         }
     }
 
-    // 🔥 AGORA USANDO HUGGING FACE
+    // 🔥 HUGGING FACE
     private fun tryModel(
         index: Int,
         models: List<String>,
@@ -169,9 +170,17 @@ class AIManager(context: Context) {
         val parameters = JSONObject()
         parameters.put("max_new_tokens", 200)
         parameters.put("temperature", 0.7)
+        parameters.put("top_p", 0.9)
+        parameters.put("repetition_penalty", 1.1)
         parameters.put("return_full_text", false)
 
         json.put("parameters", parameters)
+
+        val options = JSONObject()
+        options.put("wait_for_model", true)
+        options.put("use_cache", false)
+
+        json.put("options", options)
 
         val body = json.toString()
             .toRequestBody("application/json".toMediaTypeOrNull())
@@ -188,8 +197,7 @@ class AIManager(context: Context) {
 
                 e.printStackTrace()
 
-                penalizeModel(model)
-                tryModel(index + 1, models, messages, callback, retryCount)
+                callback("Sem resposta… mas continuo aqui.")
             }
 
             override fun onResponse(call: Call, response: Response) {
@@ -201,9 +209,7 @@ class AIManager(context: Context) {
                     println("HF RESPONSE: $bodyStr")
 
                     if (!response.isSuccessful || bodyStr.isNullOrEmpty()) {
-
-                        penalizeModel(model)
-                        tryModel(index + 1, models, messages, callback, retryCount)
+                        callback("Erro na resposta… tenta de novo.")
                         return
                     }
 
@@ -246,7 +252,7 @@ class AIManager(context: Context) {
                             return
                         }
 
-                        tryModel(index + 1, models, messages, callback, retryCount)
+                        callback("…")
                         return
                     }
 
@@ -257,8 +263,7 @@ class AIManager(context: Context) {
 
                     e.printStackTrace()
 
-                    penalizeModel(model)
-                    tryModel(index + 1, models, messages, callback, retryCount)
+                    callback("Resposta confusa… tentando ainda.")
                 }
             }
         })
