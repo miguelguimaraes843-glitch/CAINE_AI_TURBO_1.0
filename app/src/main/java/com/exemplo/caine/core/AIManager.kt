@@ -138,11 +138,11 @@ class AIManager(context: Context) {
     }
 
     // ==========================
-    // 🔥 GEMINI (PRINCIPAL)
+    // 🔥 GEMINI
     // ==========================
     private fun tryGemini(
         messages: List<Map<String, String>>,
-        callback: (String) -> Unit
+        callback: (String?) -> Unit
     ) {
 
         val prompt = buildString {
@@ -152,15 +152,9 @@ class AIManager(context: Context) {
         }
 
         val json = JSONObject()
-
-        val parts = JSONArray()
-        parts.put(JSONObject().put("text", prompt))
-
-        val content = JSONObject()
-        content.put("parts", parts)
-
-        val contentsArray = JSONArray()
-        contentsArray.put(content)
+        val parts = JSONArray().put(JSONObject().put("text", prompt))
+        val content = JSONObject().put("parts", parts)
+        val contentsArray = JSONArray().put(content)
 
         json.put("contents", contentsArray)
 
@@ -175,7 +169,7 @@ class AIManager(context: Context) {
         client.newCall(request).enqueue(object : Callback {
 
             override fun onFailure(call: Call, e: IOException) {
-                callback("GEMINI_FAIL")
+                callback(null)
             }
 
             override fun onResponse(call: Call, response: Response) {
@@ -185,12 +179,11 @@ class AIManager(context: Context) {
                     val bodyStr = response.body?.string()
 
                     if (!response.isSuccessful || bodyStr.isNullOrEmpty()) {
-                        return callback("GEMINI_FAIL")
+                        callback(null)
+                        return
                     }
 
-                    val jsonObj = JSONObject(bodyStr)
-
-                    val reply = jsonObj
+                    val reply = JSONObject(bodyStr)
                         .getJSONArray("candidates")
                         .getJSONObject(0)
                         .getJSONObject("content")
@@ -201,14 +194,14 @@ class AIManager(context: Context) {
                     callback(reply.trim())
 
                 } catch (_: Exception) {
-                    callback("GEMINI_FAIL")
+                    callback(null)
                 }
             }
         })
     }
 
     // ==========================
-    // 🔥 HUGGING FACE (FALLBACK)
+    // 🔥 FLUXO PRINCIPAL
     // ==========================
     private fun tryModel(
         index: Int,
@@ -218,18 +211,17 @@ class AIManager(context: Context) {
         retryCount: Int
     ) {
 
-        // 🔥 PRIMEIRO: GEMINI
         tryGemini(messages) { geminiResponse ->
 
-            if (geminiResponse != "GEMINI_FAIL") {
+            if (!geminiResponse.isNullOrBlank()) {
                 callback(geminiResponse)
                 return@tryGemini
             }
 
-            // 🔥 SE GEMINI FALHAR → HUGGING
+            val userText = messages.lastOrNull()?.get("content") ?: ""
 
             if (index >= models.size) {
-                callback(offlineResponse(messages.lastOrNull()?.get("content") ?: ""))
+                callback(offlineResponse(userText))
                 return@tryGemini
             }
 
@@ -278,7 +270,7 @@ class AIManager(context: Context) {
             client.newCall(request).enqueue(object : Callback {
 
                 override fun onFailure(call: Call, e: IOException) {
-                    callback(offlineResponse(messages.lastOrNull()?.get("content") ?: ""))
+                    callback(offlineResponse(userText))
                 }
 
                 override fun onResponse(call: Call, response: Response) {
@@ -288,37 +280,30 @@ class AIManager(context: Context) {
                         val bodyStr = response.body?.string()
 
                         if (!response.isSuccessful || bodyStr.isNullOrEmpty()) {
-                            callback(offlineResponse(messages.lastOrNull()?.get("content") ?: ""))
+                            callback(offlineResponse(userText))
                             return
                         }
 
                         val clean = try {
-
-                            val jsonArray = JSONArray(bodyStr)
-                            jsonArray.getJSONObject(0)
+                            JSONArray(bodyStr)
+                                .getJSONObject(0)
                                 .optString("generated_text", "")
                                 .trim()
-
                         } catch (_: Exception) {
-
-                            val jsonObj = JSONObject(bodyStr)
-
-                            if (jsonObj.has("error")) {
-                                return callback(offlineResponse(messages.lastOrNull()?.get("content") ?: ""))
-                            }
-
-                            jsonObj.optString("generated_text", "").trim()
+                            JSONObject(bodyStr)
+                                .optString("generated_text", "")
+                                .trim()
                         }
 
                         if (clean.length < 5) {
-                            callback(offlineResponse(messages.lastOrNull()?.get("content") ?: ""))
+                            callback(offlineResponse(userText))
                             return
                         }
 
                         callback(clean)
 
                     } catch (_: Exception) {
-                        callback(offlineResponse(messages.lastOrNull()?.get("content") ?: ""))
+                        callback(offlineResponse(userText))
                     }
                 }
             })
@@ -333,15 +318,9 @@ class AIManager(context: Context) {
         val lower = text.lowercase()
 
         return when {
-            "oi" in lower || "olá" in lower ->
-                "Você voltou… interessante."
-
-            "tudo bem" in lower ->
-                "Depende… você está?"
-
-            "quem é você" in lower ->
-                "Depende do que você consegue entender."
-
+            "oi" in lower || "olá" in lower -> "Você voltou… interessante."
+            "tudo bem" in lower -> "Depende… você está?"
+            "quem é você" in lower -> "Depende do que você consegue entender."
             else -> listOf(
                 "Isso não foi por acaso.",
                 "Tem algo aí que você não falou.",
