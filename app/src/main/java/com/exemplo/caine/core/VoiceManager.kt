@@ -1,74 +1,49 @@
 package com.exemplo.caine.core
 
 import android.content.Context
-import android.media.MediaPlayer
-import okhttp3.*
-import okhttp3.MediaType.Companion.toMediaType
-import okhttp3.RequestBody.Companion.toRequestBody
-import java.io.File
-import java.io.IOException
+import android.speech.tts.TextToSpeech
+import java.util.Locale
 
 class VoiceManager(private val context: Context) {
 
-    private val client = OkHttpClient()
+    private lateinit var tts: TextToSpeech
+    private var isReady = false
 
-    private val API_KEY = "sk_4a7fd5086c0a3708caadf1e3a2595083e11c9906fea1c183"
-    private val VOICE_ID = "sWaLPebpwGYPbUC23Bni"
+    init {
+        tts = TextToSpeech(context) { status ->
+            if (status == TextToSpeech.SUCCESS) {
+                tts.language = Locale("pt", "BR")
+                tts.setSpeechRate(1.0f)
+                tts.setPitch(1.0f)
+                isReady = true
+            }
+        }
+    }
 
     // ==========================
-    // 🎤 GERAR VOZ (NORMAL)
+    // 🎤 FALAR (SUBSTITUI ELEVEN)
     // ==========================
     fun speak(text: String, onDone: (() -> Unit)? = null) {
 
         val cleanText = prepareText(text)
 
-        val json = """
-        {
-          "text": "$cleanText",
-          "model_id": "eleven_multilingual_v2",
-          "voice_settings": {
-            "stability": 0.35,
-            "similarity_boost": 0.75,
-            "style": 0.9,
-            "use_speaker_boost": true
-          }
+        if (!isReady) {
+            onDone?.invoke()
+            return
         }
-        """
 
-        val body = json.toRequestBody("application/json".toMediaType())
+        tts.speak(cleanText, TextToSpeech.QUEUE_FLUSH, null, "caine_tts")
 
-        val request = Request.Builder()
-            .url("https://api.elevenlabs.io/v1/text-to-speech/$VOICE_ID")
-            .addHeader("xi-api-key", API_KEY)
-            .post(body)
-            .build()
-
-        client.newCall(request).enqueue(object : Callback {
-
-            override fun onFailure(call: Call, e: IOException) {
-                onDone?.invoke()
-            }
-
-            override fun onResponse(call: Call, response: Response) {
-
-                val bytes = response.body?.bytes()
-
-                if (bytes != null) {
-                    playAudio(bytes, onDone)
-                } else {
-                    onDone?.invoke()
-                }
-            }
-        })
+        // CALLBACK SIMPLES
+        onDone?.invoke()
     }
 
     // ==========================
-    // 🚀 STREAM (NOVO)
+    // 🚀 STREAM (MANTIDO)
     // ==========================
     fun speakStream(text: String) {
 
         val parts = splitText(text)
-
         playNext(parts, 0)
     }
 
@@ -82,7 +57,7 @@ class VoiceManager(private val context: Context) {
     }
 
     // ==========================
-    // ✂️ QUEBRAR TEXTO (NOVO)
+    // ✂️ QUEBRAR TEXTO (MANTIDO)
     // ==========================
     private fun splitText(text: String): List<String> {
 
@@ -93,32 +68,7 @@ class VoiceManager(private val context: Context) {
     }
 
     // ==========================
-    // 🔊 TOCAR ÁUDIO
-    // ==========================
-    private fun playAudio(bytes: ByteArray, onDone: (() -> Unit)?) {
-
-        try {
-            val file = File.createTempFile("caine_voice", ".mp3", context.cacheDir)
-            file.writeBytes(bytes)
-
-            val player = MediaPlayer()
-
-            player.setDataSource(file.absolutePath)
-            player.prepare()
-            player.start()
-
-            player.setOnCompletionListener {
-                player.release()
-                onDone?.invoke()
-            }
-
-        } catch (_: Exception) {
-            onDone?.invoke()
-        }
-    }
-
-    // ==========================
-    // 🧠 PREPARAR TEXTO (MELHORADO)
+    // 🧠 PREPARAR TEXTO (MANTIDO)
     // ==========================
     private fun prepareText(text: String): String {
 
