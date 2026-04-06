@@ -14,8 +14,18 @@ class AIManager(context: Context) {
 
     private val client = OkHttpClient()
 
-    private val API_KEY = ApiKeys.HF_API_KEY
-    private val GEMINI_KEY = ApiKeys.GEMINI_API_KEY
+    private val API_KEY = try {
+    ApiKeys.HF_API_KEY
+} catch (e: Exception) {
+    ""
+}
+
+private val GEMINI_KEY = try {
+    ApiKeys.GEMINI_API_KEY
+} catch (e: Exception) {
+    ""
+}
+>>>>>>> 5341c45 (ajustes locais)
 
     private val prefs = context.getSharedPreferences("caine_ai", Context.MODE_PRIVATE)
     private val emotionalPrefs = context.getSharedPreferences("caine_emotional", Context.MODE_PRIVATE)
