@@ -15,6 +15,7 @@ class AIManager(context: Context) {
     private val client = OkHttpClient()
 
     private val API_KEY = ApiKeys.HF_API_KEY
+    private val GEMINI_KEY = ApiKeys.GEMINI_API_KEY
 
     private val prefs = context.getSharedPreferences("caine_ai", Context.MODE_PRIVATE)
     private val emotionalPrefs = context.getSharedPreferences("caine_emotional", Context.MODE_PRIVATE)
@@ -137,7 +138,195 @@ class AIManager(context: Context) {
     }
 
     // ==========================
-    // 🔥 FALLBACK OFFLINE
+    // 🔥 GEMINI (PRINCIPAL)
+    // ==========================
+    private fun tryGemini(
+        messages: List<Map<String, String>>,
+        callback: (String) -> Unit
+    ) {
+
+        val prompt = buildString {
+            messages.forEach {
+                append("${it["role"]}: ${it["content"]}\n")
+            }
+        }
+
+        val json = JSONObject()
+
+        val parts = JSONArray()
+        parts.put(JSONObject().put("text", prompt))
+
+        val content = JSONObject()
+        content.put("parts", parts)
+
+        val contentsArray = JSONArray()
+        contentsArray.put(content)
+
+        json.put("contents", contentsArray)
+
+        val body = json.toString()
+            .toRequestBody("application/json".toMediaTypeOrNull())
+
+        val request = Request.Builder()
+            .url("https://generativelanguage.googleapis.com/v1/models/gemini-1.5-flash:generateContent?key=$GEMINI_KEY")
+            .post(body)
+            .build()
+
+        client.newCall(request).enqueue(object : Callback {
+
+            override fun onFailure(call: Call, e: IOException) {
+                callback("GEMINI_FAIL")
+            }
+
+            override fun onResponse(call: Call, response: Response) {
+
+                try {
+
+                    val bodyStr = response.body?.string()
+
+                    if (!response.isSuccessful || bodyStr.isNullOrEmpty()) {
+                        return callback("GEMINI_FAIL")
+                    }
+
+                    val jsonObj = JSONObject(bodyStr)
+
+                    val reply = jsonObj
+                        .getJSONArray("candidates")
+                        .getJSONObject(0)
+                        .getJSONObject("content")
+                        .getJSONArray("parts")
+                        .getJSONObject(0)
+                        .getString("text")
+
+                    callback(reply.trim())
+
+                } catch (_: Exception) {
+                    callback("GEMINI_FAIL")
+                }
+            }
+        })
+    }
+
+    // ==========================
+    // 🔥 HUGGING FACE (FALLBACK)
+    // ==========================
+    private fun tryModel(
+        index: Int,
+        models: List<String>,
+        messages: List<Map<String, String>>,
+        callback: (String) -> Unit,
+        retryCount: Int
+    ) {
+
+        // 🔥 PRIMEIRO: GEMINI
+        tryGemini(messages) { geminiResponse ->
+
+            if (geminiResponse != "GEMINI_FAIL") {
+                callback(geminiResponse)
+                return@tryGemini
+            }
+
+            // 🔥 SE GEMINI FALHAR → HUGGING
+
+            if (index >= models.size) {
+                callback(offlineResponse(messages.lastOrNull()?.get("content") ?: ""))
+                return@tryGemini
+            }
+
+            val model = "google/flan-t5-large"
+
+            val prompt = buildString {
+
+                val emotionalBlock = buildEmotionalBlock()
+
+                append("Você é Caine.\n")
+                append("Direto, expressivo e imprevisível.\n\n")
+
+                append("MEMÓRIA EMOCIONAL:\n$emotionalBlock\n\n")
+
+                messages.forEach {
+                    append("${it["role"]}: ${it["content"]}\n")
+                }
+
+                append("\nassistant:")
+            }
+
+            val json = JSONObject()
+            json.put("inputs", prompt)
+
+            val parameters = JSONObject()
+            parameters.put("max_new_tokens", 120)
+            parameters.put("temperature", 0.7)
+            parameters.put("return_full_text", false)
+
+            json.put("parameters", parameters)
+
+            val options = JSONObject()
+            options.put("wait_for_model", true)
+
+            json.put("options", options)
+
+            val body = json.toString()
+                .toRequestBody("application/json".toMediaTypeOrNull())
+
+            val request = Request.Builder()
+                .url("https://api-inference.huggingface.co/models/$model")
+                .addHeader("Authorization", "Bearer $API_KEY")
+                .post(body)
+                .build()
+
+            client.newCall(request).enqueue(object : Callback {
+
+                override fun onFailure(call: Call, e: IOException) {
+                    callback(offlineResponse(messages.lastOrNull()?.get("content") ?: ""))
+                }
+
+                override fun onResponse(call: Call, response: Response) {
+
+                    try {
+
+                        val bodyStr = response.body?.string()
+
+                        if (!response.isSuccessful || bodyStr.isNullOrEmpty()) {
+                            callback(offlineResponse(messages.lastOrNull()?.get("content") ?: ""))
+                            return
+                        }
+
+                        val clean = try {
+
+                            val jsonArray = JSONArray(bodyStr)
+                            jsonArray.getJSONObject(0)
+                                .optString("generated_text", "")
+                                .trim()
+
+                        } catch (_: Exception) {
+
+                            val jsonObj = JSONObject(bodyStr)
+
+                            if (jsonObj.has("error")) {
+                                return callback(offlineResponse(messages.lastOrNull()?.get("content") ?: ""))
+                            }
+
+                            jsonObj.optString("generated_text", "").trim()
+                        }
+
+                        if (clean.length < 5) {
+                            callback(offlineResponse(messages.lastOrNull()?.get("content") ?: ""))
+                            return
+                        }
+
+                        callback(clean)
+
+                    } catch (_: Exception) {
+                        callback(offlineResponse(messages.lastOrNull()?.get("content") ?: ""))
+                    }
+                }
+            })
+        }
+    }
+
+    // ==========================
+    // 🔥 OFFLINE
     // ==========================
     private fun offlineResponse(text: String): String {
 
@@ -153,160 +342,12 @@ class AIManager(context: Context) {
             "quem é você" in lower ->
                 "Depende do que você consegue entender."
 
-            "me ajuda" in lower ->
-                "Ajudo… mas não de graça."
-
             else -> listOf(
                 "Isso não foi por acaso.",
                 "Tem algo aí que você não falou.",
-                "Você sempre pensa assim?",
                 "Curioso… continua.",
                 "Isso diz mais sobre você do que parece."
             ).random()
         }
-    }
-
-    // ==========================
-    // 🔥 HUGGING FACE
-    // ==========================
-    private fun tryModel(
-        index: Int,
-        models: List<String>,
-        messages: List<Map<String, String>>,
-        callback: (String) -> Unit,
-        retryCount: Int
-    ) {
-
-        if (index >= models.size) {
-            callback(offlineResponse(messages.lastOrNull()?.get("content") ?: ""))
-            return
-        }
-
-        // 🔥 MODELO FREE FUNCIONANDO
-        val model = "google/flan-t5-large"
-
-        val prompt = buildString {
-
-            val emotionalBlock = buildEmotionalBlock()
-
-            append("Você é Caine.\n")
-            append("Direto, expressivo e imprevisível.\n\n")
-
-            append("MEMÓRIA EMOCIONAL:\n$emotionalBlock\n\n")
-
-            messages.forEach {
-                append("${it["role"]}: ${it["content"]}\n")
-            }
-
-            append("\nassistant:")
-        }
-
-        val json = JSONObject()
-        json.put("inputs", prompt)
-
-        val parameters = JSONObject()
-        parameters.put("max_new_tokens", 120)
-        parameters.put("temperature", 0.7)
-        parameters.put("return_full_text", false)
-
-        json.put("parameters", parameters)
-
-        val options = JSONObject()
-        options.put("wait_for_model", true)
-
-        json.put("options", options)
-
-        val body = json.toString()
-            .toRequestBody("application/json".toMediaTypeOrNull())
-
-        val request = Request.Builder()
-            .url("https://api-inference.huggingface.co/models/$model")
-            .addHeader("Authorization", "Bearer $API_KEY")
-            .post(body)
-            .build()
-
-        client.newCall(request).enqueue(object : Callback {
-
-            override fun onFailure(call: Call, e: IOException) {
-                e.printStackTrace()
-                callback(offlineResponse(messages.lastOrNull()?.get("content") ?: ""))
-            }
-
-            override fun onResponse(call: Call, response: Response) {
-
-                try {
-
-                    val bodyStr = response.body?.string()
-
-                    println("HF RESPONSE: $bodyStr")
-
-                    if (!response.isSuccessful || bodyStr.isNullOrEmpty()) {
-                        callback(offlineResponse(messages.lastOrNull()?.get("content") ?: ""))
-                        return
-                    }
-
-                    val clean = try {
-
-                        val jsonArray = JSONArray(bodyStr)
-
-                        val generated = jsonArray
-                            .getJSONObject(0)
-                            .optString("generated_text", "")
-
-                        generated.trim()
-
-                    } catch (_: Exception) {
-
-                        val jsonObj = JSONObject(bodyStr)
-
-                        if (jsonObj.has("error")) {
-                            println("HF ERROR: ${jsonObj.getString("error")}")
-                            return callback(offlineResponse(messages.lastOrNull()?.get("content") ?: ""))
-                        }
-
-                        jsonObj.optString("generated_text", "").trim()
-                    }
-
-                    if (clean.length < 5) {
-
-                        if (retryCount < 1) {
-
-                            val improved = messages.toMutableList()
-                            improved.add(
-                                mapOf(
-                                    "role" to "user",
-                                    "content" to "Responda direto e sem enrolação."
-                                )
-                            )
-
-                            tryModel(index, models, improved, callback, retryCount + 1)
-                            return
-                        }
-
-                        callback(offlineResponse(messages.lastOrNull()?.get("content") ?: ""))
-                        return
-                    }
-
-                    rewardModel(model)
-                    callback(clean)
-
-                } catch (e: Exception) {
-                    e.printStackTrace()
-                    callback(offlineResponse(messages.lastOrNull()?.get("content") ?: ""))
-                }
-            }
-        })
-    }
-
-    private fun rewardModel(model: String) {
-        val score = (modelScores[model] ?: 5) + 1
-        modelScores[model] = score
-        saveScore(model, score)
-    }
-
-    private fun penalizeModel(model: String) {
-        val score = (modelScores[model] ?: 5) - 1
-        modelScores[model] = score
-        saveScore(model, score)
     }
 }
