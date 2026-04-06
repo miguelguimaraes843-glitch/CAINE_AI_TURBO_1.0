@@ -24,7 +24,7 @@ class CaineCore(context: Context) {
     private val voiceManager = VoiceManager(context)
     private val actionEngine = ActionEngine(context)
     private val automationEngine = AutomationEngine(context, actionEngine)
-    private val habitEngine = HabitEngine(context) // 🔥 NOVO
+    private val habitEngine = HabitEngine(context)
 
     // 🔥 memória
     private var lastSpoken: String = ""
@@ -163,9 +163,12 @@ Se fizer sentido, gere no FINAL:
 
                 val actions = extractActions(fixed)
 
-                val clean = fixed
-                    .replace(Regex("\\{.*\"actions\".*}", RegexOption.DOT_MATCHES_ALL), "")
-                    .trim()
+                // ✅ CORREÇÃO SEGURA (SEM REGEX PERIGOSA)
+                val clean = if (fixed.contains("\"actions\"")) {
+                    fixed.substringBefore("{\"actions\"").trim()
+                } else {
+                    fixed
+                }.trim()
 
                 sessionMemory.add("Caine: $clean")
 
@@ -177,7 +180,7 @@ Se fizer sentido, gere no FINAL:
                     voiceManager.speak(speakText)
                 }
 
-                // 🔥 EXECUÇÃO MANUAL (APRENDE HÁBITO)
+                // 🔥 EXECUÇÃO
                 executeActions(actions)
 
                 callback(clean)
@@ -189,19 +192,23 @@ Se fizer sentido, gere no FINAL:
     }
 
     // ==========================
-    // 🔥 EXTRAIR AÇÕES
+    // 🔥 EXTRAIR AÇÕES (CORRIGIDO)
     // ==========================
     private fun extractActions(response: String): List<Pair<String, String?>> {
 
         return try {
 
-            val regex = Regex("\\{.*\"actions\".*}", RegexOption.DOT_MATCHES_ALL)
-            val match = regex.find(response) ?: return emptyList()
+            if (!response.contains("\"actions\"")) return emptyList()
 
-            val json = match.value
+            val start = response.indexOf("{\"actions\"")
+            val end = response.lastIndexOf("}")
+
+            if (start == -1 || end == -1 || end <= start) return emptyList()
+
+            val json = response.substring(start, end + 1)
 
             val actionRegex = Regex(
-                "\"action\"\\s*:\\s*\"(.*?)\"\\s*,\\s*\"data\"\\s*:\\s*\"(.*?)\""
+                "\"action\"\\s*:\\s*\"([^\"]+)\"\\s*,\\s*\"data\"\\s*:\\s*\"([^\"]*)\""
             )
 
             actionRegex.findAll(json).map {
@@ -216,7 +223,7 @@ Se fizer sentido, gere no FINAL:
     }
 
     // ==========================
-    // 🔥 EXECUÇÃO + APRENDIZADO
+    // RESTANTE IGUAL
     // ==========================
     private fun executeActions(actions: List<Pair<String, String?>>) {
 
@@ -233,8 +240,6 @@ Se fizer sentido, gere no FINAL:
                     lastAction = key
 
                     actionEngine.execute(action, data)
-
-                    // 🔥 APRENDE O HÁBITO
                     habitEngine.track(action, data)
                 }
 
@@ -244,17 +249,11 @@ Se fizer sentido, gere no FINAL:
         }.start()
     }
 
-    // ==========================
-    // 🔥 AUTOMAÇÃO INTELIGENTE
-    // ==========================
     fun checkHabitAutomation() {
 
         val now = System.currentTimeMillis()
 
-        // 🔥 evita conflito com usuário
         if (now - lastUserInteraction < 8000) return
-
-        // 🔥 cooldown
         if (now - lastHabitExecution < 30000) return
 
         val habit = habitEngine.getHabitSuggestion() ?: return
@@ -269,9 +268,6 @@ Se fizer sentido, gere no FINAL:
         actionEngine.execute(habit.first, habit.second)
     }
 
-    // ==========================
-    // 🔊 VOZ
-    // ==========================
     private fun refineForSpeech(text: String): String {
         return text
             .replace(Regex("\\bCurioso…"), "")
