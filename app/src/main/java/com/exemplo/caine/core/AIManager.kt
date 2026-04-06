@@ -13,7 +13,7 @@ class AIManager(context: Context) {
 
     private val client = OkHttpClient()
 
-    private val API_KEY = "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"
+    private val API_KEY = "SUA_API_KEY_HUGGING_AQUI"
 
     private val prefs = context.getSharedPreferences("caine_ai", Context.MODE_PRIVATE)
     private val emotionalPrefs = context.getSharedPreferences("caine_emotional", Context.MODE_PRIVATE)
@@ -131,7 +131,7 @@ class AIManager(context: Context) {
         }
     }
 
-    // 🔥 REQUEST CORRIGIDO
+    // 🔥 AGORA USANDO HUGGING FACE
     private fun tryModel(
         index: Int,
         models: List<String>,
@@ -145,50 +145,40 @@ class AIManager(context: Context) {
             return
         }
 
-        val model = models[index]
+        val model = "mistralai/Mistral-7B-Instruct-v0.2"
 
-        val json = JSONObject()
-        json.put("model", model)
+        val prompt = buildString {
 
-        val messagesArray = JSONArray()
+            val emotionalBlock = buildEmotionalBlock()
 
-        val emotionalBlock = buildEmotionalBlock()
+            append("Você é Caine.\n")
+            append("Direto, expressivo e imprevisível.\n\n")
 
-        val systemPrompt = JSONObject()
-        systemPrompt.put("role", "system")
-        systemPrompt.put(
-            "content", """
-Você é Caine.
+            append("MEMÓRIA EMOCIONAL:\n$emotionalBlock\n\n")
 
-Direto, expressivo e imprevisível.
+            messages.forEach {
+                append("${it["role"]}: ${it["content"]}\n")
+            }
 
-MEMÓRIA EMOCIONAL:
-$emotionalBlock
-"""
-        )
-
-        messagesArray.put(systemPrompt)
-
-        messages.forEach {
-            val obj = JSONObject()
-            obj.put("role", it["role"])
-            obj.put("content", it["content"])
-            messagesArray.put(obj)
+            append("\nassistant:")
         }
 
-        json.put("messages", messagesArray)
+        val json = JSONObject()
+        json.put("inputs", prompt)
+
+        val parameters = JSONObject()
+        parameters.put("max_new_tokens", 200)
+        parameters.put("temperature", 0.7)
+        parameters.put("return_full_text", false)
+
+        json.put("parameters", parameters)
 
         val body = json.toString()
             .toRequestBody("application/json".toMediaTypeOrNull())
 
         val request = Request.Builder()
-            .url("https://openrouter.ai/api/v1/chat/completions")
+            .url("https://api-inference.huggingface.co/models/$model")
             .addHeader("Authorization", "Bearer $API_KEY")
-
-            // ✅ ESSENCIAL
-            .addHeader("HTTP-Referer", "https://caine.app")
-            .addHeader("X-Title", "Caine AI")
-
             .post(body)
             .build()
 
@@ -208,36 +198,39 @@ $emotionalBlock
 
                     val bodyStr = response.body?.string()
 
-                    println("API RESPONSE: $bodyStr")
+                    println("HF RESPONSE: $bodyStr")
 
                     if (!response.isSuccessful || bodyStr.isNullOrEmpty()) {
 
-                        println("Erro HTTP: ${response.code}")
-
                         penalizeModel(model)
                         tryModel(index + 1, models, messages, callback, retryCount)
                         return
                     }
 
-                    val jsonResponse = JSONObject(bodyStr)
+                    val clean = try {
 
-                    if (!jsonResponse.has("choices")) {
+                        val jsonArray = JSONArray(bodyStr)
 
-                        println("Resposta inválida: $bodyStr")
+                        val generated = jsonArray
+                            .getJSONObject(0)
+                            .getString("generated_text")
 
-                        penalizeModel(model)
-                        tryModel(index + 1, models, messages, callback, retryCount)
-                        return
+                        generated.replace(prompt, "").trim()
+
+                    } catch (_: Exception) {
+
+                        val jsonObj = JSONObject(bodyStr)
+
+                        if (jsonObj.has("error")) {
+                            println("HF ERROR: ${jsonObj.getString("error")}")
+                            return callback("Modelo carregando… tenta de novo.")
+                        }
+
+                        val generated = jsonObj.optString("generated_text", "")
+                        generated.replace(prompt, "").trim()
                     }
 
-                    val reply = jsonResponse
-                        .getJSONArray("choices")
-                        .getJSONObject(0)
-                        .getJSONObject("message")
-                        .getString("content")
-                        .trim()
-
-                    if (reply.length < 5) {
+                    if (clean.length < 5) {
 
                         if (retryCount < 1) {
 
@@ -258,7 +251,7 @@ $emotionalBlock
                     }
 
                     rewardModel(model)
-                    callback(reply)
+                    callback(clean)
 
                 } catch (e: Exception) {
 
