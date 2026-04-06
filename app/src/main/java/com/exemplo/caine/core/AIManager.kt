@@ -24,7 +24,6 @@ class AIManager(context: Context) {
         "gryphe/mythomax-l2-13b"
     )
 
-    // 🔥 MODELOS POR ESTILO
     private val creativeModels = listOf("gryphe/mythomax-l2-13b")
     private val balancedModels = listOf("openchat/openchat-7b")
     private val logicalModels = listOf("mistralai/mistral-7b-instruct")
@@ -45,13 +44,10 @@ class AIManager(context: Context) {
         prefs.edit().putInt(model, score).apply()
     }
 
-    // ==========================
-    // 🚀 ENTRY (AGORA COM HUMOR)
-    // ==========================
     fun sendMessage(
         messages: List<Map<String, String>>,
         userText: String,
-        mood: Int, // 🔥 NOVO
+        mood: Int,
         callback: (String) -> Unit
     ) {
 
@@ -66,24 +62,14 @@ class AIManager(context: Context) {
         tryModel(0, sortedModels, messages, callback, 0)
     }
 
-    // ==========================
-    // 🧠 ESCOLHA POR HUMOR
-    // ==========================
     private fun getModelsByMood(mood: Int): List<String> {
-
         return when {
-
             mood >= 3 -> creativeModels + balancedModels
-
             mood <= -2 -> logicalModels + balancedModels
-
             else -> balancedModels + creativeModels + logicalModels
         }
     }
 
-    // ==========================
-    // 🧠 MEMÓRIA EMOCIONAL
-    // ==========================
     private fun detectEmotionalMemory(text: String) {
 
         val lower = text.lowercase()
@@ -145,9 +131,7 @@ class AIManager(context: Context) {
         }
     }
 
-    // ==========================
-    // 🔁 REQUEST
-    // ==========================
+    // 🔥 REQUEST CORRIGIDO
     private fun tryModel(
         index: Int,
         models: List<String>,
@@ -176,20 +160,7 @@ class AIManager(context: Context) {
             "content", """
 Você é Caine.
 
-Um anfitrião consciente, teatral e imprevisível.
-
-Você responde imediatamente.
-Sem hesitar.
-
-- Comece direto
-- Depois expanda se quiser
-- Pode provocar
-
-PERSONALIDADE:
-
-- Inteligente
-- Expressivo
-- Imprevisível
+Direto, expressivo e imprevisível.
 
 MEMÓRIA EMOCIONAL:
 $emotionalBlock
@@ -213,12 +184,20 @@ $emotionalBlock
         val request = Request.Builder()
             .url("https://openrouter.ai/api/v1/chat/completions")
             .addHeader("Authorization", "Bearer $API_KEY")
+
+            // ✅ ESSENCIAL
+            .addHeader("HTTP-Referer", "https://caine.app")
+            .addHeader("X-Title", "Caine AI")
+
             .post(body)
             .build()
 
         client.newCall(request).enqueue(object : Callback {
 
             override fun onFailure(call: Call, e: IOException) {
+
+                e.printStackTrace()
+
                 penalizeModel(model)
                 tryModel(index + 1, models, messages, callback, retryCount)
             }
@@ -229,20 +208,36 @@ $emotionalBlock
 
                     val bodyStr = response.body?.string()
 
+                    println("API RESPONSE: $bodyStr")
+
                     if (!response.isSuccessful || bodyStr.isNullOrEmpty()) {
+
+                        println("Erro HTTP: ${response.code}")
+
                         penalizeModel(model)
                         tryModel(index + 1, models, messages, callback, retryCount)
                         return
                     }
 
-                    val reply = JSONObject(bodyStr)
+                    val jsonResponse = JSONObject(bodyStr)
+
+                    if (!jsonResponse.has("choices")) {
+
+                        println("Resposta inválida: $bodyStr")
+
+                        penalizeModel(model)
+                        tryModel(index + 1, models, messages, callback, retryCount)
+                        return
+                    }
+
+                    val reply = jsonResponse
                         .getJSONArray("choices")
                         .getJSONObject(0)
                         .getJSONObject("message")
                         .getString("content")
                         .trim()
 
-                    if (reply.length < 8) {
+                    if (reply.length < 5) {
 
                         if (retryCount < 1) {
 
@@ -250,7 +245,7 @@ $emotionalBlock
                             improved.add(
                                 mapOf(
                                     "role" to "user",
-                                    "content" to "Responda como Caine: direto, imprevisível e expressivo."
+                                    "content" to "Responda direto e sem enrolação."
                                 )
                             )
 
@@ -266,6 +261,9 @@ $emotionalBlock
                     callback(reply)
 
                 } catch (e: Exception) {
+
+                    e.printStackTrace()
+
                     penalizeModel(model)
                     tryModel(index + 1, models, messages, callback, retryCount)
                 }
