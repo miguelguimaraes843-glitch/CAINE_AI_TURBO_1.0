@@ -1,5 +1,7 @@
 package com.exemplo.caine
 
+import android.Manifest
+import android.content.pm.PackageManager
 import android.os.Build
 import android.os.Bundle
 import android.os.Handler
@@ -7,11 +9,13 @@ import android.os.Looper
 import android.widget.Button
 import android.widget.EditText
 import androidx.appcompat.app.AppCompatActivity
+import androidx.core.app.ActivityCompat
 import androidx.recyclerview.widget.LinearLayoutManager
 import androidx.recyclerview.widget.RecyclerView
 import androidx.work.*
 import com.exemplo.caine.core.CaineCore
 import com.exemplo.caine.core.Message
+import com.exemplo.caine.core.VoiceListener
 import java.util.concurrent.TimeUnit
 
 class MainActivity : AppCompatActivity() {
@@ -21,10 +25,17 @@ class MainActivity : AppCompatActivity() {
     private lateinit var inputText: EditText
     private lateinit var sendButton: Button
 
+    // 🔥 NOVO BOTÃO (precisa existir no layout)
+    private lateinit var micButton: Button
+
     private val messages = mutableListOf<Message>()
     private lateinit var caineCore: CaineCore
 
     private var lastAutoMessageTime = 0L
+
+    // 🔥 VOZ
+    private lateinit var voiceListener: VoiceListener
+    private var isListening = false
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -32,11 +43,21 @@ class MainActivity : AppCompatActivity() {
 
         caineCore = CaineCore(this)
 
-        // 🔥 PERMISSÃO DE NOTIFICAÇÃO
+        // 🔥 PERMISSÕES
         if (Build.VERSION.SDK_INT >= 33) {
             requestPermissions(
                 arrayOf(android.Manifest.permission.POST_NOTIFICATIONS),
                 1
+            )
+        }
+
+        if (ActivityCompat.checkSelfPermission(this, Manifest.permission.RECORD_AUDIO)
+            != PackageManager.PERMISSION_GRANTED
+        ) {
+            ActivityCompat.requestPermissions(
+                this,
+                arrayOf(Manifest.permission.RECORD_AUDIO),
+                2
             )
         }
 
@@ -49,12 +70,51 @@ class MainActivity : AppCompatActivity() {
         inputText = findViewById(R.id.inputText)
         sendButton = findViewById(R.id.sendButton)
 
+        // 🔥 BOTÃO DE VOZ (cria no XML com esse ID)
+        micButton = findViewById(R.id.micButton)
+
         adapter = MessageAdapter(messages)
         recyclerView.layoutManager = LinearLayoutManager(this)
         recyclerView.adapter = adapter
 
         addMessage(Message("Caine ativo… observando 😈", false))
 
+        // ==========================
+        // 🔊 VOICE LISTENER
+        // ==========================
+        voiceListener = VoiceListener(this) { text ->
+
+            runOnUiThread {
+
+                addMessage(Message(text, true))
+
+                caineCore.processMessage(text, messages) { response ->
+                    runOnUiThread {
+                        addMessage(Message(response, false))
+                    }
+                }
+            }
+        }
+
+        // ==========================
+        // 🔘 BOTÃO MICROFONE
+        // ==========================
+        micButton.setOnClickListener {
+
+            isListening = !isListening
+
+            if (isListening) {
+                voiceListener.start()
+                micButton.text = "🎤 ON"
+            } else {
+                voiceListener.stop()
+                micButton.text = "🎤 OFF"
+            }
+        }
+
+        // ==========================
+        // ✉️ ENVIO NORMAL
+        // ==========================
         sendButton.setOnClickListener {
 
             val text = inputText.text.toString().trim()
@@ -108,7 +168,7 @@ class MainActivity : AppCompatActivity() {
 
         WorkManager.getInstance(this).enqueueUniquePeriodicWork(
             "caine_worker",
-            ExistingPeriodicWorkPolicy.REPLACE, // 🔥 CORRIGIDO AQUI
+            ExistingPeriodicWorkPolicy.REPLACE,
             work
         )
     }
