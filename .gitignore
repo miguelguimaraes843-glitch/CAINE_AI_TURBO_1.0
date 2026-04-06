@@ -10,3 +10,5 @@
 /captures
 .externalNativeBuild
 
+# 🔐 PROTEGER API KEYS
+app/src/main/java/com/exemplo/caine/core/ApiKeys.kt
