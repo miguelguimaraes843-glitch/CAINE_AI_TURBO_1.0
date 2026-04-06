@@ -2,6 +2,8 @@ package com.exemplo.caine
 
 import android.Manifest
 import android.content.pm.PackageManager
+import android.graphics.Color
+import android.content.res.ColorStateList
 import android.os.Build
 import android.os.Bundle
 import android.os.Handler
@@ -25,7 +27,7 @@ class MainActivity : AppCompatActivity() {
     private lateinit var inputText: EditText
     private lateinit var sendButton: Button
 
-    // 🔥 NOVO BOTÃO (precisa existir no layout)
+    // 🔥 BOTÃO DE VOZ
     private lateinit var micButton: Button
 
     private val messages = mutableListOf<Message>()
@@ -70,8 +72,8 @@ class MainActivity : AppCompatActivity() {
         inputText = findViewById(R.id.inputText)
         sendButton = findViewById(R.id.sendButton)
 
-        // 🔥 BOTÃO DE VOZ (cria no XML com esse ID)
-        micButton = findViewById(R.id.micButton)
+        // 🔥 CORREÇÃO AQUI (ID DO XML)
+        micButton = findViewById(R.id.voiceButton)
 
         adapter = MessageAdapter(messages)
         recyclerView.layoutManager = LinearLayoutManager(this)
@@ -105,10 +107,14 @@ class MainActivity : AppCompatActivity() {
 
             if (isListening) {
                 voiceListener.start()
-                micButton.text = "🎤 ON"
+                micButton.text = "🔴"
+                micButton.backgroundTintList =
+                    ColorStateList.valueOf(Color.RED)
             } else {
                 voiceListener.stop()
-                micButton.text = "🎤 OFF"
+                micButton.text = "🎤"
+                micButton.backgroundTintList =
+                    ColorStateList.valueOf(Color.parseColor("#00C853"))
             }
         }
 
