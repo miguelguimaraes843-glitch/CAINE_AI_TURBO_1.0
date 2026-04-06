@@ -77,7 +77,6 @@ class AIManager(context: Context) {
     }
 
     private fun detectEmotionalMemory(text: String) {
-
         val lower = text.lowercase()
 
         val triggers = mapOf(
@@ -183,7 +182,8 @@ class AIManager(context: Context) {
             return
         }
 
-        val model = "mistralai/Mistral-7B-Instruct-v0.2"
+        // 🔥 MODELO FREE FUNCIONANDO
+        val model = "google/flan-t5-large"
 
         val prompt = buildString {
 
@@ -205,17 +205,14 @@ class AIManager(context: Context) {
         json.put("inputs", prompt)
 
         val parameters = JSONObject()
-        parameters.put("max_new_tokens", 200)
+        parameters.put("max_new_tokens", 120)
         parameters.put("temperature", 0.7)
-        parameters.put("top_p", 0.9)
-        parameters.put("repetition_penalty", 1.1)
         parameters.put("return_full_text", false)
 
         json.put("parameters", parameters)
 
         val options = JSONObject()
         options.put("wait_for_model", true)
-        options.put("use_cache", false)
 
         json.put("options", options)
 
@@ -232,8 +229,6 @@ class AIManager(context: Context) {
 
             override fun onFailure(call: Call, e: IOException) {
                 e.printStackTrace()
-
-                // 🔥 FALLBACK
                 callback(offlineResponse(messages.lastOrNull()?.get("content") ?: ""))
             }
 
@@ -256,20 +251,20 @@ class AIManager(context: Context) {
 
                         val generated = jsonArray
                             .getJSONObject(0)
-                            .getString("generated_text")
+                            .optString("generated_text", "")
 
-                        generated.replace(prompt, "").trim()
+                        generated.trim()
 
                     } catch (_: Exception) {
 
                         val jsonObj = JSONObject(bodyStr)
 
                         if (jsonObj.has("error")) {
-                            return callback("Tô acordando ainda… fala de novo.")
+                            println("HF ERROR: ${jsonObj.getString("error")}")
+                            return callback(offlineResponse(messages.lastOrNull()?.get("content") ?: ""))
                         }
 
-                        val generated = jsonObj.optString("generated_text", "")
-                        generated.replace(prompt, "").trim()
+                        jsonObj.optString("generated_text", "").trim()
                     }
 
                     if (clean.length < 5) {
@@ -296,9 +291,7 @@ class AIManager(context: Context) {
                     callback(clean)
 
                 } catch (e: Exception) {
-
                     e.printStackTrace()
-
                     callback(offlineResponse(messages.lastOrNull()?.get("content") ?: ""))
                 }
             }
