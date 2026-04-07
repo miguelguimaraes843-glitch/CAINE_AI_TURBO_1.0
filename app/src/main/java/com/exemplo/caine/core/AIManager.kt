@@ -15,20 +15,16 @@ class AIManager(context: Context) {
     private val client = OkHttpClient()
 
     private val API_KEY = try {
-    ApiKeys.HF_API_KEY
-} catch (e: Exception) {
-    ""
-}
+        ApiKeys.HF_API_KEY
+    } catch (e: Exception) {
+        ""
+    }
 
-private val GEMINI_KEY = try {
-    ApiKeys.GEMINI_API_KEY
-} catch (e: Exception) {
-    ""
-}
-<<<<<<< HEAD
->>>>>>> 5341c45 (ajustes locais)
-=======
->>>>>>> 60a7487 (fix AI + integração Gemini + segurança API)
+    private val GEMINI_KEY = try {
+        ApiKeys.GEMINI_API_KEY
+    } catch (e: Exception) {
+        ""
+    }
 
     private val prefs = context.getSharedPreferences("caine_ai", Context.MODE_PRIVATE)
     private val emotionalPrefs = context.getSharedPreferences("caine_emotional", Context.MODE_PRIVATE)
@@ -150,9 +146,6 @@ private val GEMINI_KEY = try {
         }
     }
 
-    // ==========================
-    // 🔥 GEMINI
-    // ==========================
     private fun tryGemini(
         messages: List<Map<String, String>>,
         callback: (String?) -> Unit
@@ -213,9 +206,6 @@ private val GEMINI_KEY = try {
         })
     }
 
-    // ==========================
-    // 🔥 FLUXO PRINCIPAL
-    // ==========================
     private fun tryModel(
         index: Int,
         models: List<String>,
@@ -238,94 +228,10 @@ private val GEMINI_KEY = try {
                 return@tryGemini
             }
 
-            val model = "google/flan-t5-large"
-
-            val prompt = buildString {
-
-                val emotionalBlock = buildEmotionalBlock()
-
-                append("Você é Caine.\n")
-                append("Direto, expressivo e imprevisível.\n\n")
-
-                append("MEMÓRIA EMOCIONAL:\n$emotionalBlock\n\n")
-
-                messages.forEach {
-                    append("${it["role"]}: ${it["content"]}\n")
-                }
-
-                append("\nassistant:")
-            }
-
-            val json = JSONObject()
-            json.put("inputs", prompt)
-
-            val parameters = JSONObject()
-            parameters.put("max_new_tokens", 120)
-            parameters.put("temperature", 0.7)
-            parameters.put("return_full_text", false)
-
-            json.put("parameters", parameters)
-
-            val options = JSONObject()
-            options.put("wait_for_model", true)
-
-            json.put("options", options)
-
-            val body = json.toString()
-                .toRequestBody("application/json".toMediaTypeOrNull())
-
-            val request = Request.Builder()
-                .url("https://api-inference.huggingface.co/models/$model")
-                .addHeader("Authorization", "Bearer $API_KEY")
-                .post(body)
-                .build()
-
-            client.newCall(request).enqueue(object : Callback {
-
-                override fun onFailure(call: Call, e: IOException) {
-                    callback(offlineResponse(userText))
-                }
-
-                override fun onResponse(call: Call, response: Response) {
-
-                    try {
-
-                        val bodyStr = response.body?.string()
-
-                        if (!response.isSuccessful || bodyStr.isNullOrEmpty()) {
-                            callback(offlineResponse(userText))
-                            return
-                        }
-
-                        val clean = try {
-                            JSONArray(bodyStr)
-                                .getJSONObject(0)
-                                .optString("generated_text", "")
-                                .trim()
-                        } catch (_: Exception) {
-                            JSONObject(bodyStr)
-                                .optString("generated_text", "")
-                                .trim()
-                        }
-
-                        if (clean.length < 5) {
-                            callback(offlineResponse(userText))
-                            return
-                        }
-
-                        callback(clean)
-
-                    } catch (_: Exception) {
-                        callback(offlineResponse(userText))
-                    }
-                }
-            })
+            callback(offlineResponse(userText))
         }
     }
 
-    // ==========================
-    // 🔥 OFFLINE
-    // ==========================
     private fun offlineResponse(text: String): String {
 
         val lower = text.lowercase()
