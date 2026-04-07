@@ -25,7 +25,10 @@ private val GEMINI_KEY = try {
 } catch (e: Exception) {
     ""
 }
+<<<<<<< HEAD
 >>>>>>> 5341c45 (ajustes locais)
+=======
+>>>>>>> 60a7487 (fix AI + integração Gemini + segurança API)
 
     private val prefs = context.getSharedPreferences("caine_ai", Context.MODE_PRIVATE)
     private val emotionalPrefs = context.getSharedPreferences("caine_emotional", Context.MODE_PRIVATE)
