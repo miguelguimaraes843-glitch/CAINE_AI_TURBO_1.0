@@ -14,17 +14,9 @@ class AIManager(context: Context) {
 
     private val client = OkHttpClient()
 
-    private val API_KEY = try {
-        ApiKeys.HF_API_KEY
-    } catch (e: Exception) {
-        ""
-    }
-
-    private val GEMINI_KEY = try {
-        ApiKeys.GEMINI_API_KEY
-    } catch (e: Exception) {
-        ""
-    }
+    // 🔥 FIX: não depende mais de ApiKeys
+    private val API_KEY = System.getenv("HF_API_KEY") ?: ""
+    private val GEMINI_KEY = System.getenv("GEMINI_API_KEY") ?: ""
 
     private val prefs = context.getSharedPreferences("caine_ai", Context.MODE_PRIVATE)
     private val emotionalPrefs = context.getSharedPreferences("caine_emotional", Context.MODE_PRIVATE)
@@ -150,6 +142,12 @@ class AIManager(context: Context) {
         messages: List<Map<String, String>>,
         callback: (String?) -> Unit
     ) {
+
+        // 🔥 proteção extra
+        if (GEMINI_KEY.isBlank()) {
+            callback(null)
+            return
+        }
 
         val prompt = buildString {
             messages.forEach {
